@@ -1,0 +1,9 @@
+{
+  "name": "autopost-assets",
+  "version": "1.0.0",
+  "description": "Asset generation for automated faceless shorts",
+  "main": "generate_assets.js",
+  "dependencies": {
+    "msedge-tts": "^1.4.0"
+  }
+}

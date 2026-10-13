@@ -65,7 +65,7 @@
     },
     {
       "parameters": {
-        "command": "=python3 /home/node/generate_assets.py '{{ $json.clean_json.replace(/'/g, \"\\\\'\") }}'"
+        "command": "=node /home/node/generate_assets.js '{{ $json.clean_json.replace(/'/g, \"\\\\'\") }}'"
       },
       "id": "5f988f61-1234-4567-89ab-cdef01234571",
       "name": "Generate Audio & Video Assets",

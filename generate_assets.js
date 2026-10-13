@@ -14,16 +14,26 @@ async function downloadFile(url, destPath) {
 
 async function main() {
   if (process.argv.length < 3) {
-    console.error(JSON.stringify({ error: "No JSON payload provided" }));
+    console.error(JSON.stringify({ error: "No payload provided" }));
     process.exit(1);
   }
 
-  const rawInput = process.argv[2];
+  const rawArg = process.argv[2];
+  let jsonString = rawArg;
+
+  // Decode from Base64 if passed as base64 (bulletproof against shell quotes)
+  try {
+    const decoded = Buffer.from(rawArg, 'base64').toString('utf-8');
+    if (decoded.trim().startsWith('{')) {
+      jsonString = decoded;
+    }
+  } catch (_) {}
+
   let data;
   try {
-    data = JSON.parse(rawInput);
+    data = JSON.parse(jsonString);
   } catch (err) {
-    console.error(JSON.stringify({ error: "Invalid JSON input", details: err.message }));
+    console.error(JSON.stringify({ error: "Invalid JSON input", details: err.message, snippet: jsonString.substring(0, 80) }));
     process.exit(1);
   }
 
@@ -44,7 +54,7 @@ async function main() {
   const tts = new MsEdgeTTS();
   await tts.setMetadata("en-US-ChristopherNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
   const { audioFilePath } = await tts.toFile(tmpDir, scriptText);
-  if (audioFilePath !== audioPath) {
+  if (audioFilePath && audioFilePath !== audioPath) {
     fs.copyFileSync(audioFilePath, audioPath);
   }
 
@@ -72,7 +82,7 @@ async function main() {
       concatContent += `file '${sceneFile}'\nduration ${perImageDuration}\n`;
     }
   }
-  // Repeat last frame to avoid ffmpeg truncation
+  // Repeat last frame to prevent ffmpeg truncation
   concatContent += `file '${path.join(tmpDir, "scene_4.jpg")}'\n`;
   fs.writeFileSync(concatPath, concatContent);
 

@@ -52,7 +52,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const responseText = $input.first().json.candidates[0].content.parts[0].text;\nlet cleanText = responseText.trim();\nif (cleanText.startsWith('```json')) {\n  cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '').trim();\n} else if (cleanText.startsWith('```')) {\n  cleanText = cleanText.replace(/^```/, '').replace(/```$/, '').trim();\n}\n\n// Validate JSON\nJSON.parse(cleanText);\n\nreturn [{ json: { clean_json: cleanText } }];"
+        "jsCode": "const responseText = $input.first().json.candidates[0].content.parts[0].text;\nlet cleanText = responseText.trim();\nif (cleanText.startsWith('```json')) {\n  cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '').trim();\n} else if (cleanText.startsWith('```')) {\n  cleanText = cleanText.replace(/^```/, '').replace(/```$/, '').trim();\n}\n\n// Validate JSON\nJSON.parse(cleanText);\n\n// Base64 encode to completely prevent shell quote/character breaking\nconst b64 = Buffer.from(cleanText, 'utf-8').toString('base64');\nreturn [{ json: { payload_b64: b64 } }];"
       },
       "id": "4e988f61-1234-4567-89ab-cdef01234570",
       "name": "Format JSON",
@@ -65,7 +65,7 @@
     },
     {
       "parameters": {
-        "command": "=node /home/node/generate_assets.js '{{ $json.clean_json.replace(/'/g, \"\\\\'\") }}'"
+        "command": "=node /home/node/generate_assets.js {{ $json.payload_b64 }}"
       },
       "id": "5f988f61-1234-4567-89ab-cdef01234571",
       "name": "Generate Audio & Video Assets",

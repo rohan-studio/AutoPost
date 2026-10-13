@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+env/
+
+# Temp files
+/tmp/
+*.mp4
+*.mp3
+*.jpg
+*.png
+
+# OS
+.DS_Store
+Thumbs.db

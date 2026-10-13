@@ -1,0 +1,181 @@
+{
+  "name": "Automated Faceless YouTube Shorts Generator",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1b988f61-1234-4567-89ab-cdef01234567",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "intervalValue": 1
+            }
+          ]
+        }
+      },
+      "id": "2c988f61-1234-4567-89ab-cdef01234568",
+      "name": "Daily Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Generate a viral 40-second YouTube Short about an unbelievable psychological or historical fact. Respond ONLY in valid JSON with keys: title, description, script (approx 75 words), scenes (array of 4 visual image prompts). No markdown ticks, just raw JSON.\"\n    }]\n  }]\n}",
+        "options": {}
+      },
+      "id": "3d988f61-1234-4567-89ab-cdef01234569",
+      "name": "Generate Script & Prompts (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const responseText = $input.first().json.candidates[0].content.parts[0].text;\nlet cleanText = responseText.trim();\nif (cleanText.startsWith('```json')) {\n  cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '').trim();\n} else if (cleanText.startsWith('```')) {\n  cleanText = cleanText.replace(/^```/, '').replace(/```$/, '').trim();\n}\n\n// Validate JSON\nJSON.parse(cleanText);\n\nreturn [{ json: { clean_json: cleanText } }];"
+      },
+      "id": "4e988f61-1234-4567-89ab-cdef01234570",
+      "name": "Format JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=python3 /home/node/generate_assets.py '{{ $json.clean_json.replace(/'/g, \"\\\\'\") }}'"
+      },
+      "id": "5f988f61-1234-4567-89ab-cdef01234571",
+      "name": "Generate Audio & Video Assets",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        920,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "filePath": "/tmp/final_short.mp4",
+        "dataPropertyName": "data"
+      },
+      "id": "6a988f61-1234-4567-89ab-cdef01234572",
+      "name": "Read Video File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "title": "={{ JSON.parse($('Generate Audio & Video Assets').json.stdout).title }}",
+        "description": "={{ JSON.parse($('Generate Audio & Video Assets').json.stdout).description }}",
+        "privacyStatus": "private"
+      },
+      "id": "7b988f61-1234-4567-89ab-cdef01234573",
+      "name": "Upload to YouTube",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Script & Prompts (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Script & Prompts (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Script & Prompts (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Format JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format JSON": {
+      "main": [
+        [
+          {
+            "node": "Generate Audio & Video Assets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Audio & Video Assets": {
+      "main": [
+        [
+          {
+            "node": "Read Video File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Video File": {
+      "main": [
+        [
+          {
+            "node": "Upload to YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

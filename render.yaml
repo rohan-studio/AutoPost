@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: autopost-n8n
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: N8N_PORT
+        value: 5678
+      - key: PORT
+        value: 5678
+      - key: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+        value: "true"
+      - key: DB_TYPE
+        value: postgresdb
+      - key: DB_POSTGRESDB_PORT
+        value: 5432
+      - key: DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED
+        value: "false"
+      - key: N8N_ENCRYPTION_KEY
+        generateValue: true
+      # You will connect these to your Neon.tech DB in Render's dashboard:
+      # DB_POSTGRESDB_HOST
+      # DB_POSTGRESDB_DATABASE
+      # DB_POSTGRESDB_USER
+      # DB_POSTGRESDB_PASSWORD
+      # WEBHOOK_URL

@@ -13,7 +13,7 @@ RUN chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe
 
 # Set up Node.js dependencies for Edge-TTS and video generation
 WORKDIR /home/node
-COPY package.json /home/node/package.json
+COPY package.json package-lock.json* /home/node/
 RUN npm install --omit=dev
 
 # Copy video generator script

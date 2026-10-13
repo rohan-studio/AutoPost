@@ -35,7 +35,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Generate a viral 40-second YouTube Short about an unbelievable psychological or historical fact. Respond ONLY in valid JSON with keys: title, description, script (approx 75 words), scenes (array of 4 visual image prompts). No markdown ticks, just raw JSON.\"\n    }]\n  }]\n}",

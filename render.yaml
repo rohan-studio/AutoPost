@@ -18,6 +18,8 @@ services:
         value: 5432
       - key: DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED
         value: "false"
+      - key: NODES_EXCLUDE
+        value: "[]"
       - key: N8N_ENCRYPTION_KEY
         generateValue: true
       # You will connect these to your Neon.tech DB in Render's dashboard:

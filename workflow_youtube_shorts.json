@@ -62,12 +62,15 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=YOUR_GEMINI_API_KEY",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Generate a viral \" + $json.duration_seconds + \"-second YouTube Short about \" + $json.topic + \". Rules:\\n- Target duration: exactly \" + $json.duration_seconds + \" seconds.\\n- Voiceover script must be exactly \" + Math.round($json.duration_seconds * 2.2) + \" words (speaking pace of 2.2 words/sec).\\n- Exactly \" + ($json.duration_seconds <= 20 ? 2 : 3) + \" visual scene descriptions for image generation.\\nRespond ONLY in valid JSON with keys: title, description, script, scenes (array of visual image prompts). No markdown ticks, just raw JSON.\"\n    }]\n  }]\n}",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "id": "3d988f61-1234-4567-89ab-cdef01234569",
       "name": "Generate Script & Prompts (Gemini)",
       "type": "n8n-nodes-base.httpRequest",

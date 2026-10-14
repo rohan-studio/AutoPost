@@ -64,7 +64,7 @@
         "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Generate a viral \" + $json.duration_seconds + \"-second YouTube Short about \" + $json.topic + \". Rules:\\n- Target duration: exactly \" + $json.duration_seconds + \" seconds.\\n- Voiceover script must be exactly \" + Math.round($json.duration_seconds * 2.2) + \" words (speaking pace of 2.2 words/sec).\\n- Exactly \" + ($json.duration_seconds <= 20 ? 2 : 3) + \" visual scene descriptions for image generation.\\nRespond ONLY in valid JSON with keys: title, description, script, scenes (array of visual image prompts). No markdown ticks, just raw JSON.\"\n    }]\n  }]\n}",
+        "jsonBody": "{\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"={{ 'Generate a viral ' + ($json.duration_seconds || 15) + '-second YouTube Short about ' + ($json.topic || 'an unbelievable psychological or historical fact') + '. Rules:\\n- Target duration: exactly ' + ($json.duration_seconds || 15) + ' seconds.\\n- Voiceover script must be exactly ' + Math.round(($json.duration_seconds || 15) * 2.2) + ' words.\\n- Exactly ' + (($json.duration_seconds || 15) <= 20 ? 2 : 3) + ' visual scene descriptions for image generation.\\nRespond ONLY in valid JSON with keys: title, description, script, scenes (array of visual image prompts). No markdown ticks, just raw JSON.' }}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\",\n    \"temperature\": 0.7\n  }\n}",
         "options": {}
       },
       "retryOnFail": true,
@@ -107,8 +107,9 @@
     },
     {
       "parameters": {
-        "filePath": "/tmp/final_short.mp4",
-        "dataPropertyName": "data"
+        "operation": "read",
+        "fileSelector": "/tmp/final_short.mp4",
+        "options": {}
       },
       "id": "62e86d5b-1d28-4dfc-bced-ab1dee0f5f60",
       "name": "Download Video File",
@@ -133,7 +134,8 @@
       "position": [
         1328,
         80
-      ]
+      ],
+      "disabled": true
     }
   ],
   "pinData": {},

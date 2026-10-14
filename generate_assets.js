@@ -152,6 +152,11 @@ async function main() {
   execSync(ffmpegCmd, { stdio: 'pipe' });
   console.error("Video rendering complete!");
 
+  // Also make available in /home/node/final_short.mp4
+  try {
+    fs.copyFileSync(finalVideoPath, "/home/node/final_short.mp4");
+  } catch (_) {}
+
   // 6. Return Clean JSON output for n8n
   console.log(JSON.stringify({
     status: "success",

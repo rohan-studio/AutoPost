@@ -91,10 +91,9 @@ function buildDynamicFFmpegCommand(scenes, audioPath, bgmPath, audioDuration, fi
   const N = scenes.length;
   const T = 0.5; // 0.5s smooth crossfade transition
 
-  // If only 1 scene, apply Ken Burns without xfade
+  // If only 1 scene, apply smooth drift without xfade
   if (N === 1) {
-    const frames = Math.ceil(audioDuration * 25);
-    let filter = `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,zoompan=z='min(zoom+0.0012,1.15)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=25[vout]`;
+    let filter = `[0:v]scale=1200:2133:force_original_aspect_ratio=increase,crop=1200:2133,crop=1080:1920:x='(in_w-out_w)*(t/${audioDuration.toFixed(2)})':y='(in_h-out_h)*(t/${audioDuration.toFixed(2)})',setsar=1[vout]`;
     let inputs = [`-loop 1 -t ${audioDuration.toFixed(2)} -i "${scenes[0]}"`, `-i "${audioPath}"`];
     let audioMap = `-map 1:a`;
 
@@ -107,9 +106,8 @@ function buildDynamicFFmpegCommand(scenes, audioPath, bgmPath, audioDuration, fi
     return `${ffmpegBin} -y ${inputs.join(" ")} -filter_complex "${filter}" -map "[vout]" ${audioMap} -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -b:a 128k -t ${audioDuration.toFixed(2)} "${finalVideoPath}"`;
   }
 
-  // N >= 2 scenes with alternating Ken Burns (zoom-in / zoom-out) and crossfade
+  // N >= 2 scenes: Ultra-fast Ken Burns drift (zero CPU resampling) + smooth xfade
   const S = (audioDuration + (N - 1) * T) / N;
-  const framesPerScene = Math.ceil(S * 25);
 
   let inputs = [];
   scenes.forEach(scenePath => {
@@ -128,10 +126,15 @@ function buildDynamicFFmpegCommand(scenes, audioPath, bgmPath, audioDuration, fi
 
   let filters = [];
   for (let i = 0; i < N; i++) {
-    const zoomExpr = (i % 2 === 0)
-      ? "min(zoom+0.0012,1.15)"
-      : "if(lte(zoom,1.0),1.15,max(1.001,zoom-0.0012))";
-    filters.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,zoompan=z='${zoomExpr}':d=${framesPerScene}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=25[v${i}]`);
+    let cropMotion;
+    if (i % 3 === 0) {
+      cropMotion = `x='(in_w-out_w)*(t/${S.toFixed(2)})':y='(in_h-out_h)*(t/${S.toFixed(2)})'`;
+    } else if (i % 3 === 1) {
+      cropMotion = `x='(in_w-out_w)*(1-t/${S.toFixed(2)})':y='(in_h-out_h)*(1-t/${S.toFixed(2)})'`;
+    } else {
+      cropMotion = `x='(in_w-out_w)/2':y='(in_h-out_h)*(t/${S.toFixed(2)})'`;
+    }
+    filters.push(`[${i}:v]scale=1200:2133:force_original_aspect_ratio=increase,crop=1200:2133,crop=1080:1920:${cropMotion},setsar=1[v${i}]`);
   }
 
   let lastV = "v0";

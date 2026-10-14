@@ -263,6 +263,10 @@ async function main() {
   const title = (data.title || data.headline || "Fascinating Fact You Did Not Know #shorts").trim();
   const description = (data.description || data.summary || "Subscribe for more daily facts! #shorts #facts").trim();
 
+  // Extract requested target duration (e.g. 15s or 30s)
+  const targetDuration = Math.max(parseFloat(data.target_duration || data.duration_seconds || 15), 5.0);
+  console.error(`[Settings] Target video duration: ${targetDuration}s`);
+
   // Robustly extract voiceover script from any common key
   let scriptText = (
     data.script ||
@@ -278,6 +282,20 @@ async function main() {
   if (!scriptText || scriptText.length < 5) {
     console.error("Notice: script key was empty, using title as voiceover...");
     scriptText = `${title}. This is an unbelievable fact that will blow your mind!`;
+  }
+
+  // Strict word budget: English speaking rate is ~2.2 words/sec
+  const maxWords = Math.round(targetDuration * 2.3);
+  const words = scriptText.split(/\s+/).filter(Boolean);
+  if (words.length > maxWords) {
+    console.error(`Notice: Script has ${words.length} words, trimming to ~${maxWords} words to strictly fit ${targetDuration}s...`);
+    const slice = words.slice(0, maxWords).join(' ');
+    const lastPunct = Math.max(slice.lastIndexOf('.'), slice.lastIndexOf('!'), slice.lastIndexOf('?'));
+    if (lastPunct > slice.length * 0.55) {
+      scriptText = slice.slice(0, lastPunct + 1).trim();
+    } else {
+      scriptText = slice.trim() + '!';
+    }
   }
 
   // Robustly extract scenes
@@ -302,12 +320,31 @@ async function main() {
   await tts.synthesize(scriptText);
   await tts.toFile(audioPath);
 
-  // 2. Measure audio duration with ffprobe
+  // 2. Measure audio duration with ffprobe and enforce strict duration constraint
   console.error("Measuring voiceover audio duration...");
+  const ffmpegBin = fs.existsSync('/usr/local/bin/ffmpeg') ? '/usr/local/bin/ffmpeg' : 'ffmpeg';
   const ffprobeBin = fs.existsSync('/usr/local/bin/ffprobe') ? '/usr/local/bin/ffprobe' : 'ffprobe';
   const durationOutput = execSync(`${ffprobeBin} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioPath}"`);
-  const audioDuration = parseFloat(durationOutput.toString().trim()) || 15.0;
-  console.error(`Audio duration: ${audioDuration.toFixed(2)}s`);
+  let audioDuration = parseFloat(durationOutput.toString().trim()) || targetDuration;
+  console.error(`Raw voiceover duration: ${audioDuration.toFixed(2)}s (Target: ${targetDuration}s)`);
+
+  // If audio duration exceeds target duration, speed up cleanly with atempo
+  if (audioDuration > targetDuration) {
+    const speedRatio = Math.min(audioDuration / (targetDuration - 0.2), 1.35);
+    console.error(`Enforcing strict ${targetDuration}s: accelerating voiceover by ${speedRatio.toFixed(2)}x using atempo...`);
+    const adjustedAudioPath = path.join(tmpDir, "voice_tempo.mp3");
+    execSync(`${ffmpegBin} -y -i "${audioPath}" -af "atempo=${speedRatio.toFixed(3)}" -c:a libmp3lame -b:a 128k "${adjustedAudioPath}"`);
+    fs.copyFileSync(adjustedAudioPath, audioPath);
+    if (fs.existsSync(adjustedAudioPath)) fs.unlinkSync(adjustedAudioPath);
+
+    const newDurOut = execSync(`${ffprobeBin} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioPath}"`);
+    audioDuration = parseFloat(newDurOut.toString().trim()) || targetDuration;
+    console.error(`Adjusted voiceover duration: ${audioDuration.toFixed(2)}s`);
+  }
+
+  // Absolute hard cap: final video duration strictly locked to targetDuration
+  const finalVideoDuration = Math.min(audioDuration, targetDuration);
+  console.error(`Final locked video duration: ${finalVideoDuration.toFixed(2)}s`);
 
   // 3. Generate Scene Visuals in Parallel
   console.error(`Generating ${scenes.length} scene visuals in parallel...`);
@@ -332,8 +369,8 @@ async function main() {
   }
 
   // 5. Render 1080x1920 Short with Ken Burns motion, smooth crossfades, and ducked BGM
-  console.error(`Rendering ${audioDuration.toFixed(1)}s Short with smooth transitions & motion...`);
-  const ffmpegCmd = buildDynamicFFmpegCommand(validScenePaths, audioPath, bgmPath, audioDuration, finalVideoPath);
+  console.error(`Rendering ${finalVideoDuration.toFixed(1)}s Short (strict target ${targetDuration}s)...`);
+  const ffmpegCmd = buildDynamicFFmpegCommand(validScenePaths, audioPath, bgmPath, finalVideoDuration, finalVideoPath);
   execSync(ffmpegCmd, { stdio: 'pipe' });
   console.error("Video rendering complete!");
 
@@ -364,7 +401,7 @@ async function main() {
     video_path: finalVideoPath,
     title,
     description,
-    duration: Math.round(audioDuration),
+    duration: Math.round(finalVideoDuration),
     view_url: tmpUrls ? tmpUrls.viewUrl : null,
     download_url: tmpUrls ? tmpUrls.downloadUrl : null,
     cloudinary_url: cloudinaryUrl || null

@@ -64,7 +64,7 @@
         "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"={{ 'Generate a viral ' + ($json.duration_seconds || 15) + '-second YouTube Short about ' + ($json.topic || 'an unbelievable psychological or historical fact') + '. Rules:\\n- Target duration: exactly ' + ($json.duration_seconds || 15) + ' seconds.\\n- Voiceover script must be exactly ' + Math.round(($json.duration_seconds || 15) * 2.2) + ' words.\\n- Exactly ' + (($json.duration_seconds || 15) <= 20 ? 2 : 3) + ' visual scene descriptions for image generation.\\nRespond ONLY in valid JSON with keys: title, description, script, scenes (array of visual image prompts). No markdown ticks, just raw JSON.' }}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\",\n    \"temperature\": 0.7\n  }\n}",
+        "jsonBody": "{\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"={{ 'Generate a viral ' + ($json.duration_seconds || 15) + '-second YouTube Short about ' + ($json.topic || 'an unbelievable psychological or historical fact') + '. Rules:\\n- Target duration: strictly ' + ($json.duration_seconds || 15) + ' seconds.\\n- CRITICAL: Voiceover script must be UNDER ' + Math.round(($json.duration_seconds || 15) * 2.0) + ' words so it can be spoken in under ' + ($json.duration_seconds || 15) + ' seconds. Keep it punchy and fast!\\n- Exactly ' + (($json.duration_seconds || 15) <= 20 ? 2 : 3) + ' visual scene descriptions for image generation.\\nRespond ONLY in valid JSON with keys: title, description, script, scenes (array of visual image prompts). No markdown ticks, just raw JSON.' }}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\",\n    \"temperature\": 0.7\n  }\n}",
         "options": {}
       },
       "retryOnFail": true,
@@ -81,7 +81,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const responseText = $input.first().json.candidates[0].content.parts[0].text;\nlet cleanText = responseText.trim();\nif (cleanText.startsWith('```json')) {\n  cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '').trim();\n} else if (cleanText.startsWith('```')) {\n  cleanText = cleanText.replace(/^```/, '').replace(/```$/, '').trim();\n}\n\n// Validate JSON\nJSON.parse(cleanText);\n\n// Base64 encode without Monaco linter warnings\nconst b64 = btoa(unescape(encodeURIComponent(cleanText)));\nreturn [{ json: { payload_b64: b64 } }];"
+        "jsCode": "const responseText = $input.first().json.candidates[0].content.parts[0].text;\nlet cleanText = responseText.trim();\nif (cleanText.startsWith('```json')) {\n  cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '').trim();\n} else if (cleanText.startsWith('```')) {\n  cleanText = cleanText.replace(/^```/, '').replace(/```$/, '').trim();\n}\n\n// Validate and parse JSON\nconst data = JSON.parse(cleanText);\n\n// Inject target duration from Set Video Settings node!\nconst settings = $('Set Video Settings').first().json;\ndata.target_duration = Number(settings.duration_seconds || 15);\ndata.topic = settings.topic || data.topic || '';\n\n// Base64 encode without Monaco linter warnings\nconst b64 = btoa(unescape(encodeURIComponent(JSON.stringify(data))));\nreturn [{ json: { payload_b64: b64 } }];"
       },
       "id": "b07bc90a-abe7-4e07-897d-f69e0c0f5adb",
       "name": "Format JSON",

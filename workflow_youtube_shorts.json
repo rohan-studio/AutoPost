@@ -3,33 +3,30 @@
   "nodes": [
     {
       "parameters": {},
-      "id": "1b988f61-1234-4567-89ab-cdef01234567",
+      "id": "0b4da250-3aca-48c4-8fed-b027666a0e43",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        200,
-        300
+        0,
+        0
       ]
     },
     {
       "parameters": {
         "rule": {
           "interval": [
-            {
-              "field": "days",
-              "intervalValue": 1
-            }
+            {}
           ]
         }
       },
-      "id": "2c988f61-1234-4567-89ab-cdef01234568",
+      "id": "6b700ac2-60d3-4ba8-a3a5-b5f24beca89c",
       "name": "Daily Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        200,
-        480
+        0,
+        192
       ]
     },
     {
@@ -50,14 +47,16 @@
         },
         "options": {}
       },
-      "id": "2d988f61-1234-4567-89ab-cdef01234560",
+      "id": "9d4b2535-b136-41e5-a13d-f0c8ae7e7ce8",
       "name": "Set Video Settings",
       "type": "n8n-nodes-base.set",
       "typeVersion": 2,
       "position": [
-        420,
-        380
-      ]
+        224,
+        80
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -71,39 +70,39 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "id": "3d988f61-1234-4567-89ab-cdef01234569",
+      "id": "3315f8c0-952f-412e-bf67-4a038ac985cc",
       "name": "Generate Script & Prompts (Gemini)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        640,
-        380
+        448,
+        80
       ]
     },
     {
       "parameters": {
         "jsCode": "const responseText = $input.first().json.candidates[0].content.parts[0].text;\nlet cleanText = responseText.trim();\nif (cleanText.startsWith('```json')) {\n  cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '').trim();\n} else if (cleanText.startsWith('```')) {\n  cleanText = cleanText.replace(/^```/, '').replace(/```$/, '').trim();\n}\n\n// Validate JSON\nJSON.parse(cleanText);\n\n// Base64 encode without Monaco linter warnings\nconst b64 = btoa(unescape(encodeURIComponent(cleanText)));\nreturn [{ json: { payload_b64: b64 } }];"
       },
-      "id": "4e988f61-1234-4567-89ab-cdef01234570",
+      "id": "b07bc90a-abe7-4e07-897d-f69e0c0f5adb",
       "name": "Format JSON",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        860,
-        380
+        672,
+        80
       ]
     },
     {
       "parameters": {
         "command": "=echo \"{{ $json.payload_b64 }}\" | base64 -d > /tmp/input.json && node -e \"const fs = require('fs'); process.argv[2] = fs.readFileSync('/tmp/input.json', 'utf8'); require('/home/node/generate_assets.js');\""
       },
-      "id": "5f988f61-1234-4567-89ab-cdef01234571",
+      "id": "82b8b146-b789-408c-8f10-79d64ddc12af",
       "name": "Generate Audio & Video Assets",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1080,
-        380
+        880,
+        80
       ]
     },
     {
@@ -111,35 +110,33 @@
         "filePath": "/tmp/final_short.mp4",
         "dataPropertyName": "data"
       },
-      "id": "6a988f61-1234-4567-89ab-cdef01234572",
-      "name": "Read Video File",
+      "id": "62e86d5b-1d28-4dfc-bced-ab1dee0f5f60",
+      "name": "Download Video File",
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        1300,
-        380
+        1104,
+        80
       ]
     },
     {
       "parameters": {
         "resource": "video",
         "operation": "upload",
-        "binaryData": true,
-        "binaryPropertyName": "data",
         "title": "={{ JSON.parse($('Generate Audio & Video Assets').json.stdout).title }}",
-        "description": "={{ JSON.parse($('Generate Audio & Video Assets').json.stdout).description }}",
-        "privacyStatus": "private"
+        "options": {}
       },
-      "id": "7b988f61-1234-4567-89ab-cdef01234573",
-      "name": "Upload to YouTube",
+      "id": "ac6470b2-7504-4f59-84ad-955b67d53a29",
+      "name": "Upload to YouTube (Optional)",
       "type": "n8n-nodes-base.youTube",
       "typeVersion": 1,
       "position": [
-        1520,
-        380
+        1328,
+        80
       ]
     }
   ],
+  "pinData": {},
   "connections": {
     "Manual Trigger": {
       "main": [
@@ -200,23 +197,16 @@
       "main": [
         [
           {
-            "node": "Read Video File",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read Video File": {
-      "main": [
-        [
-          {
-            "node": "Upload to YouTube",
+            "node": "Download Video File",
             "type": "main",
             "index": 0
           }
         ]
       ]
     }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
   }
 }

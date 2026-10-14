@@ -4,12 +4,13 @@ const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { EdgeTTS } = require('@andresaya/edge-tts');
 
-// Fast, resilient image downloader with parallel execution and strict 15s timeout
+// Fast, resilient image downloader with true 9:16 vertical dimensions (720x1280) so images never stretch
 async function fetchSceneImage(prompt, destPath, index) {
   const cleanPrompt = prompt.replace(/[^\w\s,.-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
-  const encoded = encodeURIComponent(cleanPrompt + ", cinematic lighting, 8k, vertical 9:16");
+  const encoded = encodeURIComponent(cleanPrompt + ", cinematic lighting, 8k, vertical 9:16 portrait");
 
-  const pollinationsUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1080&height=1920&nologo=true&model=turbo`;
+  // 720x1280 matches true 9:16 vertical and fits within 1024x1024 AI latent budget without stretching
+  const pollinationsUrl = `https://image.pollinations.ai/prompt/${encoded}?width=720&height=1280&nologo=true&model=turbo`;
 
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -23,9 +24,9 @@ async function fetchSceneImage(prompt, destPath, index) {
 
   // Fast 15-second attempt for Pollinations AI
   try {
-    console.error(`[Scene ${index + 1}] Requesting AI image...`);
+    console.error(`[Scene ${index + 1}] Requesting AI visual...`);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000); // Strict 15s timeout
+    const timeout = setTimeout(() => controller.abort(), 15000);
     const res = await fetch(pollinationsUrl, { headers, signal: controller.signal });
     clearTimeout(timeout);
 
@@ -56,6 +57,103 @@ async function fetchSceneImage(prompt, destPath, index) {
   } catch (fallbackErr) {
     console.error(`[Scene ${index + 1}] Fallback error: ${fallbackErr.message}`);
   }
+}
+
+// Select background music suited to the topic
+function selectBgmTrack(topic, title) {
+  const combined = ((topic || "") + " " + (title || "")).toLowerCase();
+  const bgmDirs = [
+    path.join(__dirname, 'assets', 'bgm'),
+    path.join('/home/node', 'assets', 'bgm'),
+    path.join(__dirname, 'bgm')
+  ];
+
+  for (const bgmBase of bgmDirs) {
+    if (fs.existsSync(bgmBase)) {
+      if (combined.includes('secret') || combined.includes('mystery') || combined.includes('dark') || combined.includes('conspiracy') || combined.includes('history') || combined.includes('crime')) {
+        const p = path.join(bgmBase, 'mystery.mp3');
+        if (fs.existsSync(p)) return p;
+      }
+      if (combined.includes('space') || combined.includes('universe') || combined.includes('future') || combined.includes('epic') || combined.includes('science')) {
+        const p = path.join(bgmBase, 'epic.mp3');
+        if (fs.existsSync(p)) return p;
+      }
+      const p = path.join(bgmBase, 'curiosity.mp3');
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return null;
+}
+
+// Build professional FFmpeg command with Ken Burns zoom/pan motion, smooth crossfades, and ducked BGM
+function buildDynamicFFmpegCommand(scenes, audioPath, bgmPath, audioDuration, finalVideoPath) {
+  const ffmpegBin = fs.existsSync('/usr/local/bin/ffmpeg') ? '/usr/local/bin/ffmpeg' : 'ffmpeg';
+  const N = scenes.length;
+  const T = 0.5; // 0.5s smooth crossfade transition
+
+  // If only 1 scene, apply Ken Burns without xfade
+  if (N === 1) {
+    const frames = Math.ceil(audioDuration * 25);
+    let filter = `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,zoompan=z='min(zoom+0.0012,1.15)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=25[vout]`;
+    let inputs = [`-loop 1 -t ${audioDuration.toFixed(2)} -i "${scenes[0]}"`, `-i "${audioPath}"`];
+    let audioMap = `-map 1:a`;
+
+    if (bgmPath && fs.existsSync(bgmPath)) {
+      inputs.push(`-stream_loop -1 -i "${bgmPath}"`);
+      filter += `; [1:a]volume=1.0[voice]; [2:a]volume=0.15[bgm]; [voice][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]`;
+      audioMap = `-map "[aout]"`;
+    }
+
+    return `${ffmpegBin} -y ${inputs.join(" ")} -filter_complex "${filter}" -map "[vout]" ${audioMap} -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -b:a 128k -t ${audioDuration.toFixed(2)} "${finalVideoPath}"`;
+  }
+
+  // N >= 2 scenes with alternating Ken Burns (zoom-in / zoom-out) and crossfade
+  const S = (audioDuration + (N - 1) * T) / N;
+  const framesPerScene = Math.ceil(S * 25);
+
+  let inputs = [];
+  scenes.forEach(scenePath => {
+    inputs.push(`-loop 1 -t ${S.toFixed(2)} -i "${scenePath}"`);
+  });
+
+  inputs.push(`-i "${audioPath}"`);
+  const voiceIndex = N;
+
+  const hasBgm = bgmPath && fs.existsSync(bgmPath);
+  let bgmIndex = -1;
+  if (hasBgm) {
+    inputs.push(`-stream_loop -1 -i "${bgmPath}"`);
+    bgmIndex = N + 1;
+  }
+
+  let filters = [];
+  for (let i = 0; i < N; i++) {
+    const zoomExpr = (i % 2 === 0)
+      ? "min(zoom+0.0012,1.15)"
+      : "if(lte(zoom,1.0),1.15,max(1.001,zoom-0.0012))";
+    filters.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,zoompan=z='${zoomExpr}':d=${framesPerScene}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=25[v${i}]`);
+  }
+
+  let lastV = "v0";
+  for (let k = 0; k < N - 1; k++) {
+    const nextV = `v${k + 1}`;
+    const outV = (k === N - 2) ? "vout" : `xf${k}`;
+    const offset = ((k + 1) * S - (k + 1) * T).toFixed(2);
+    filters.push(`[${lastV}][${nextV}]xfade=transition=fade:duration=${T}:offset=${offset}[${outV}]`);
+    lastV = outV;
+  }
+
+  let audioMap = "";
+  if (hasBgm) {
+    filters.push(`[${voiceIndex}:a]volume=1.0[voice]`);
+    filters.push(`[${bgmIndex}:a]volume=0.15[bgm]`);
+    filters.push(`[voice][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]`);
+    audioMap = `-map "[aout]"`;
+  } else {
+    audioMap = `-map ${voiceIndex}:a`;
+  }
+
+  return `${ffmpegBin} -y ${inputs.join(" ")} -filter_complex "${filters.join("; ")}" -map "[vout]" ${audioMap} -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -b:a 128k -t ${audioDuration.toFixed(2)} "${finalVideoPath}"`;
 }
 
 // Upload to 100% free temporary file host (tmpfiles.org) - no signup required
@@ -177,7 +275,6 @@ async function main() {
     ""
   ).toString().trim();
 
-  // If script key was missing or empty, ensure Edge-TTS never fails with "The text is empty"
   if (!scriptText || scriptText.length < 5) {
     console.error("Notice: script key was empty, using title as voiceover...");
     scriptText = `${title}. This is an unbelievable fact that will blow your mind!`;
@@ -196,41 +293,47 @@ async function main() {
   const audioPath = path.join(tmpDir, "voice.mp3");
   const finalVideoPath = path.join(tmpDir, "final_short.mp4");
 
+  // Clean old audio if present to avoid duration discrepancies
+  if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+
   // 1. Generate Voiceover using Edge-TTS
   console.error("Generating natural voiceover with Edge-TTS...");
   const tts = new EdgeTTS({ voice: "en-US-ChristopherNeural" });
   await tts.synthesize(scriptText);
   await tts.toFile(audioPath);
 
-  // 2. Generate Scene Visuals IN PARALLEL (All images download simultaneously in ~3-5 seconds!)
+  // 2. Measure audio duration with ffprobe
+  console.error("Measuring voiceover audio duration...");
+  const ffprobeBin = fs.existsSync('/usr/local/bin/ffprobe') ? '/usr/local/bin/ffprobe' : 'ffprobe';
+  const durationOutput = execSync(`${ffprobeBin} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioPath}"`);
+  const audioDuration = parseFloat(durationOutput.toString().trim()) || 15.0;
+  console.error(`Audio duration: ${audioDuration.toFixed(2)}s`);
+
+  // 3. Generate Scene Visuals in Parallel
   console.error(`Generating ${scenes.length} scene visuals in parallel...`);
+  const sceneFilePaths = [];
+  for (let i = 0; i < scenes.length; i++) {
+    sceneFilePaths.push(path.join(tmpDir, `scene_${i + 1}.jpg`));
+  }
   await Promise.all(
-    scenes.map((prompt, i) => fetchSceneImage(prompt, path.join(tmpDir, `scene_${i + 1}.jpg`), i))
+    scenes.map((prompt, i) => fetchSceneImage(prompt, sceneFilePaths[i], i))
   );
 
-  // 3. Measure audio duration with ffprobe
-  console.error("Measuring audio duration...");
-  const durationOutput = execSync(`/usr/local/bin/ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ${audioPath}`);
-  const duration = parseFloat(durationOutput.toString().trim()) || 15.0;
-  const numScenes = scenes.length;
-  const perImageDuration = Math.max(duration / numScenes, 1.5);
-
-  // 4. Create FFmpeg concat list
-  const concatPath = path.join(tmpDir, "inputs.txt");
-  let concatContent = "";
-  for (let i = 1; i <= numScenes; i++) {
-    const sceneFile = path.join(tmpDir, `scene_${i}.jpg`);
-    if (fs.existsSync(sceneFile)) {
-      concatContent += `file '${sceneFile}'\nduration ${perImageDuration}\n`;
-    }
+  // Filter to valid downloaded images
+  const validScenePaths = sceneFilePaths.filter(p => fs.existsSync(p) && fs.statSync(p).size > 1000);
+  if (validScenePaths.length === 0) {
+    throw new Error("No valid scene visuals could be downloaded or generated.");
   }
-  // Repeat last frame to avoid ffmpeg cutting off early
-  concatContent += `file '${path.join(tmpDir, `scene_${numScenes}.jpg`)}'\n`;
-  fs.writeFileSync(concatPath, concatContent);
 
-  // 5. Render 1080x1920 Short using FFmpeg ULTRAFAST preset
-  console.error(`Rendering ${duration.toFixed(1)}s video with FFmpeg (ultrafast)...`);
-  const ffmpegCmd = `/usr/local/bin/ffmpeg -y -f concat -safe 0 -i ${concatPath} -i ${audioPath} -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset ultrafast -tune stillimage -crf 26 -c:a aac -b:a 128k -threads 2 -shortest ${finalVideoPath}`;
+  // 4. Select background music matching topic
+  const bgmPath = selectBgmTrack(data.topic || "", title);
+  if (bgmPath) {
+    console.error(`Selected background music: ${path.basename(bgmPath)}`);
+  }
+
+  // 5. Render 1080x1920 Short with Ken Burns motion, smooth crossfades, and ducked BGM
+  console.error(`Rendering ${audioDuration.toFixed(1)}s Short with smooth transitions & motion...`);
+  const ffmpegCmd = buildDynamicFFmpegCommand(validScenePaths, audioPath, bgmPath, audioDuration, finalVideoPath);
   execSync(ffmpegCmd, { stdio: 'pipe' });
   console.error("Video rendering complete!");
 
@@ -261,7 +364,7 @@ async function main() {
     video_path: finalVideoPath,
     title,
     description,
-    duration: Math.round(duration),
+    duration: Math.round(audioDuration),
     view_url: tmpUrls ? tmpUrls.viewUrl : null,
     download_url: tmpUrls ? tmpUrls.downloadUrl : null,
     cloudinary_url: cloudinaryUrl || null

@@ -16,8 +16,9 @@ WORKDIR /home/node
 COPY package.json package-lock.json* /home/node/
 RUN npm install --omit=dev
 
-# Copy video generator script
+# Copy video generator script and assets
 COPY generate_assets.js /home/node/generate_assets.js
+COPY assets/ /home/node/assets/
 RUN chown -R node:node /home/node
 
 USER node

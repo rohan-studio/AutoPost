@@ -8,7 +8,7 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        240,
+        200,
         300
       ]
     },
@@ -28,8 +28,35 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        240,
+        200,
         480
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "number": [
+            {
+              "name": "duration_seconds",
+              "value": 15
+            }
+          ],
+          "string": [
+            {
+              "name": "topic",
+              "value": "an unbelievable psychological or historical fact"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2d988f61-1234-4567-89ab-cdef01234560",
+      "name": "Set Video Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        420,
+        380
       ]
     },
     {
@@ -38,7 +65,7 @@
         "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Generate a viral 40-second YouTube Short about an unbelievable psychological or historical fact. Respond ONLY in valid JSON with keys: title, description, script (approx 75 words), scenes (array of 4 visual image prompts). No markdown ticks, just raw JSON.\"\n    }]\n  }]\n}",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Generate a viral \" + $json.duration_seconds + \"-second YouTube Short about \" + $json.topic + \". Rules:\\n- Target duration: exactly \" + $json.duration_seconds + \" seconds.\\n- Voiceover script must be exactly \" + Math.round($json.duration_seconds * 2.2) + \" words (speaking pace of 2.2 words/sec).\\n- Exactly \" + ($json.duration_seconds <= 20 ? 2 : 3) + \" visual scene descriptions for image generation.\\nRespond ONLY in valid JSON with keys: title, description, script, scenes (array of visual image prompts). No markdown ticks, just raw JSON.\"\n    }]\n  }]\n}",
         "options": {}
       },
       "id": "3d988f61-1234-4567-89ab-cdef01234569",
@@ -46,7 +73,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        480,
+        640,
         380
       ]
     },
@@ -59,20 +86,20 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        700,
+        860,
         380
       ]
     },
     {
       "parameters": {
-        "command": "=node /home/node/generate_assets.js {{ $json.payload_b64 }}"
+        "command": "=echo \"{{ $json.payload_b64 }}\" | base64 -d > /tmp/input.json && node -e \"const fs = require('fs'); process.argv[2] = fs.readFileSync('/tmp/input.json', 'utf8'); require('/home/node/generate_assets.js');\""
       },
       "id": "5f988f61-1234-4567-89ab-cdef01234571",
       "name": "Generate Audio & Video Assets",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        920,
+        1080,
         380
       ]
     },
@@ -86,7 +113,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        1140,
+        1300,
         380
       ]
     },
@@ -105,7 +132,7 @@
       "type": "n8n-nodes-base.youTube",
       "typeVersion": 1,
       "position": [
-        1360,
+        1520,
         380
       ]
     }
@@ -115,7 +142,7 @@
       "main": [
         [
           {
-            "node": "Generate Script & Prompts (Gemini)",
+            "node": "Set Video Settings",
             "type": "main",
             "index": 0
           }
@@ -123,6 +150,17 @@
       ]
     },
     "Daily Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Video Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Video Settings": {
       "main": [
         [
           {

@@ -72,17 +72,41 @@ async function main() {
   let data;
   try {
     data = JSON.parse(jsonString);
+    if (Array.isArray(data) && data.length > 0) data = data[0];
+    if (data.video && typeof data.video === 'object') data = data.video;
+    if (data.short && typeof data.short === 'object') data = data.short;
   } catch (err) {
     console.error(JSON.stringify({ error: "Invalid JSON input", details: err.message }));
     process.exit(1);
   }
 
-  const title = data.title || "Fascinating Fact You Did Not Know #shorts";
-  const description = data.description || "Subscribe for more daily facts! #shorts #facts";
-  const scriptText = data.script || "";
-  const rawScenes = Array.isArray(data.scenes) && data.scenes.length > 0 ? data.scenes : ["A cinematic dramatic scene"];
-  // Support 2 to 4 scenes depending on user-selected duration
-  const scenes = rawScenes.slice(0, 4);
+  const title = (data.title || data.headline || "Fascinating Fact You Did Not Know #shorts").trim();
+  const description = (data.description || data.summary || "Subscribe for more daily facts! #shorts #facts").trim();
+
+  // Robustly extract voiceover script from any common key
+  let scriptText = (
+    data.script ||
+    data.voiceover ||
+    data.narration ||
+    data.speech ||
+    data.text ||
+    data.content ||
+    data.voiceover_script ||
+    ""
+  ).toString().trim();
+
+  // If script key was missing or empty, ensure Edge-TTS never fails with "The text is empty"
+  if (!scriptText || scriptText.length < 5) {
+    console.error("Notice: script key was empty, using title as voiceover...");
+    scriptText = `${title}. This is an unbelievable fact that will blow your mind!`;
+  }
+
+  // Robustly extract scenes
+  let rawScenes = data.scenes || data.visuals || data.prompts || data.scene_prompts || data.images || [];
+  if (!Array.isArray(rawScenes) || rawScenes.length === 0) {
+    rawScenes = [title, "A dramatic cinematic moment"];
+  }
+  const scenes = rawScenes.slice(0, 4).map(s => (typeof s === 'string' ? s : (s.prompt || s.description || JSON.stringify(s))));
 
   const tmpDir = "/tmp";
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });

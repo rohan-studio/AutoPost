@@ -118,7 +118,8 @@
       "position": [
         1104,
         80
-      ]
+      ],
+      "continueOnFail": true
     },
     {
       "parameters": {

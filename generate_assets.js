@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { EdgeTTS } = require('@andresaya/edge-tts');
 
@@ -55,6 +56,87 @@ async function fetchSceneImage(prompt, destPath, index) {
   } catch (fallbackErr) {
     console.error(`[Scene ${index + 1}] Fallback error: ${fallbackErr.message}`);
   }
+}
+
+// Upload to 100% free temporary file host (tmpfiles.org) - no signup required
+async function uploadToTmpFiles(filePath) {
+  try {
+    console.error("Uploading video to temporary download server (tmpfiles.org)...");
+    const form = new FormData();
+    const buffer = fs.readFileSync(filePath);
+    const blob = new Blob([buffer], { type: 'video/mp4' });
+    form.append('file', blob, path.basename(filePath));
+
+    const res = await fetch('https://tmpfiles.org/api/v1/upload', {
+      method: 'POST',
+      body: form
+    });
+    const data = await res.json();
+    if (data && data.data && data.data.url) {
+      const viewUrl = data.data.url;
+      const downloadUrl = viewUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
+      console.error(`Temporary download link ready: ${viewUrl}`);
+      return { viewUrl, downloadUrl };
+    }
+  } catch (err) {
+    console.error(`Temporary host upload notice: ${err.message}`);
+  }
+  return null;
+}
+
+// Optional: Upload to Cloudinary if user sets Cloudinary credentials in Render
+async function uploadToCloudinary(filePath) {
+  let cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  let apiKey = process.env.CLOUDINARY_API_KEY;
+  let apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET;
+
+  if (process.env.CLOUDINARY_URL) {
+    try {
+      const u = new URL(process.env.CLOUDINARY_URL);
+      cloudName = cloudName || u.hostname;
+      apiKey = apiKey || u.username;
+      apiSecret = apiSecret || u.password;
+    } catch (_) {}
+  }
+
+  if (!cloudName || (!uploadPreset && (!apiKey || !apiSecret))) {
+    return null;
+  }
+
+  try {
+    console.error("Uploading video to Cloudinary...");
+    const form = new FormData();
+    const buffer = fs.readFileSync(filePath);
+    const blob = new Blob([buffer], { type: 'video/mp4' });
+    form.append('file', blob, path.basename(filePath));
+
+    if (uploadPreset) {
+      form.append('upload_preset', uploadPreset);
+    } else {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const str = `timestamp=${timestamp}${apiSecret}`;
+      const signature = crypto.createHash('sha1').update(str).digest('hex');
+      form.append('api_key', apiKey);
+      form.append('timestamp', timestamp.toString());
+      form.append('signature', signature);
+    }
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/video/upload`, {
+      method: 'POST',
+      body: form
+    });
+    const data = await res.json();
+    if (data.secure_url) {
+      console.error(`Uploaded to Cloudinary: ${data.secure_url}`);
+      return data.secure_url;
+    } else {
+      console.error(`Cloudinary notice: ${JSON.stringify(data.error || data)}`);
+    }
+  } catch (err) {
+    console.error(`Cloudinary upload failed: ${err.message}`);
+  }
+  return null;
 }
 
 async function main() {
@@ -157,13 +239,32 @@ async function main() {
     fs.copyFileSync(finalVideoPath, "/home/node/final_short.mp4");
   } catch (_) {}
 
-  // 6. Return Clean JSON output for n8n
+  // 6. Temporary & Cloudinary uploads for instant viewing / downloading
+  let tmpUrls = null;
+  let cloudinaryUrl = null;
+
+  try {
+    tmpUrls = await uploadToTmpFiles(finalVideoPath);
+  } catch (e) {
+    console.error("tmpfiles notice: " + e.message);
+  }
+
+  try {
+    cloudinaryUrl = await uploadToCloudinary(finalVideoPath);
+  } catch (e) {
+    console.error("cloudinary notice: " + e.message);
+  }
+
+  // 7. Return Clean JSON output for n8n
   console.log(JSON.stringify({
     status: "success",
     video_path: finalVideoPath,
     title,
     description,
-    duration: Math.round(duration)
+    duration: Math.round(duration),
+    view_url: tmpUrls ? tmpUrls.viewUrl : null,
+    download_url: tmpUrls ? tmpUrls.downloadUrl : null,
+    cloudinary_url: cloudinaryUrl || null
   }));
 }
 

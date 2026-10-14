@@ -107,19 +107,16 @@
     },
     {
       "parameters": {
-        "operation": "read",
-        "fileSelector": "/tmp/final_short.mp4",
-        "options": {}
+        "jsCode": "const output = JSON.parse($input.first().json.stdout);\nreturn [{\n  json: {\n    status: \"🎉 Video Generated Successfully!\",\n    watch_online_url: output.view_url,\n    direct_download_mp4: output.download_url,\n    cloudinary_url: output.cloudinary_url || \"(Optional: add Cloudinary keys in Render to enable)\",\n    title: output.title,\n    duration_seconds: output.duration\n  }\n}];"
       },
       "id": "62e86d5b-1d28-4dfc-bced-ab1dee0f5f60",
-      "name": "Download Video File",
-      "type": "n8n-nodes-base.readWriteFile",
-      "typeVersion": 1,
+      "name": "View & Download Video Link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1104,
         80
-      ],
-      "continueOnFail": true
+      ]
     },
     {
       "parameters": {
@@ -200,7 +197,7 @@
       "main": [
         [
           {
-            "node": "Download Video File",
+            "node": "View & Download Video Link",
             "type": "main",
             "index": 0
           }

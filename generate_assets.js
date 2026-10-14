@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+const { EdgeTTS } = require('@andresaya/edge-tts');
 
 // Bulletproof image downloader with Pollinations (browser headers) and automatic fallback
 async function fetchSceneImage(prompt, destPath, index) {
@@ -96,12 +96,9 @@ async function main() {
 
   // 1. Generate Voiceover using Edge-TTS (100% Free, Unlimited)
   console.error("Generating natural voiceover with Edge-TTS...");
-  const tts = new MsEdgeTTS();
-  await tts.setMetadata("en-US-ChristopherNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-  const { audioFilePath } = await tts.toFile(tmpDir, scriptText);
-  if (audioFilePath && audioFilePath !== audioPath) {
-    fs.copyFileSync(audioFilePath, audioPath);
-  }
+  const tts = new EdgeTTS({ voice: "en-US-ChristopherNeural" });
+  await tts.synthesize(scriptText);
+  await tts.toFile(audioPath);
 
   // 2. Generate Scene Visuals (Pollinations AI + Fallback)
   console.error("Generating 4 scene visuals...");

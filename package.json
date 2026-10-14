@@ -4,6 +4,6 @@
   "description": "Asset generation for automated faceless shorts",
   "main": "generate_assets.js",
   "dependencies": {
-    "msedge-tts": "^2.0.9"
+    "@andresaya/edge-tts": "^1.9.1"
   }
 }
